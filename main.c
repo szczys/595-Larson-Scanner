@@ -12,10 +12,11 @@
 #define clock (1<<PD7)
 
 unsigned char pwmValues[16] ={
-  0x00,0x02,0x04,0x08,0x10,0x20,0x40,0x80,
-  0x80,0x40,0x20,0x10,0x08,0x04,0x02,0x00	//Exponential Approximations
+  0x08,0x30,0xFF,0x30,0x08,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00	//Exponential Approximations
 }; 
 
+volatile unsigned char timingFlag = 0;
 volatile unsigned char bcmBuffer[channels];
 unsigned char BCMtracker = 0;
 
@@ -35,6 +36,22 @@ void calcBCM(void) {
   }
 }
 
+void shiftCylon(unsigned char direction){
+  if (direction){
+    for (unsigned char i=0; i<channels-1; i++){
+      pwmValues[i] = pwmValues[i+1];
+    }
+    pwmValues[channels-1] = 0x00;
+  }
+  else {
+    for (unsigned char i=channels; i>0 ; i--){
+      pwmValues[i-1] = pwmValues[i-2];
+    }
+    pwmValues[0] = 0x00;
+  }
+  calcBCM();
+}
+
 int main(void)
 {
   //Setup IO
@@ -52,9 +69,19 @@ int main(void)
   OCR0A = 0x01;		//Set to compare on first count
   sei();		//enable all interrupts
 
+  unsigned char timingBuffer = 0;
+  unsigned char direction;  
   while(1)
   {
-    //Loop Forever
+    if (timingFlag) { 	//This flag get set about 122 times per second
+      timingFlag = 0;	//Unset flag for next time
+      if (++timingBuffer > 4){
+        timingBuffer = 0;
+        if (pwmValues[0] != 0x00) direction = 0;
+        else if (pwmValues[channels-1] != 0x00) direction = 1;
+        shiftCylon(direction);
+      }
+    }
   }
 }
 
@@ -64,8 +91,17 @@ ISR(TIMER0_COMPA_vect){
   ShiftPort &= ~latch;
 
   //Set interrupt for next BCM delay value
+  	//This is confusing--> it actually sets how
+	//long to wait with the currently displayed
+	//bits before the next interrupt.
   if (BCMtracker == 0) OCR0A = 0x01;
   else OCR0A <<= 1;
+  
+  //Tell main loop we're about wait for the largest number
+  //  clock ticks in the BCM cycle. This is a good time to
+  //  do things in the main loop because they'll have the
+  //  max amount of time before being interrupted.
+  if (OCR0A == (1<<7)) timingFlag = 1;
 
   //Increment the BCM tracking index
   BCMtracker ++;
