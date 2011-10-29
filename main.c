@@ -12,7 +12,7 @@
 #define clock (1<<PD7)
 
 unsigned char pwmValues[16] ={
-  0x08,0x30,0xFF,0x30,0x08,0x00,0x00,0x00,
+  0x04,0x10,0xFF,0x10,0x04,0x00,0x00,0x00,
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00	//Exponential Approximations
 }; 
 
@@ -75,7 +75,7 @@ int main(void)
   {
     if (timingFlag) { 	//This flag get set about 122 times per second
       timingFlag = 0;	//Unset flag for next time
-      if (++timingBuffer > 4){
+      if (++timingBuffer > 7){
         timingBuffer = 0;
         if (pwmValues[0] != 0x00) direction = 0;
         else if (pwmValues[channels-1] != 0x00) direction = 1;
