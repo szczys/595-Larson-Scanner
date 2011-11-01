@@ -5,11 +5,11 @@
 			//don't use the most significant bits 
 			//if you use a non-multiple)
 
-#define ShiftRegister DDRD
-#define ShiftPort PORTD
-#define data (1<<PD5)
-#define latch (1<<PD6)
-#define clock (1<<PD7)
+#define ShiftRegister DDRB
+#define ShiftPort PORTB
+#define data (1<<PD3)
+#define latch (1<<PB2)
+#define clock (1<<PB5)
 
 unsigned char pwmValues[16] ={
   0x04,0x10,0xFF,0x10,0x04,0x00,0x00,0x00,
@@ -57,6 +57,9 @@ int main(void)
   //Setup IO
   ShiftRegister |= (data | latch | clock);	//Set outputs
   ShiftPort &= ~(data | latch | clock);	//Set pins low
+
+  //Setup SPI
+  SPCR = (1<<SPE) | (1<<MSTR);	//Start SPI as Master
 
   //Prewind the Binary Coded Modulation buffer
   calcBCM();
@@ -109,16 +112,8 @@ ISR(TIMER0_COMPA_vect){
 
   //Strobe in data for next time
   for (signed char channelAdjustment=(channels/8)-1; channelAdjustment>=0; channelAdjustment--){
-    for (unsigned char i=0; i<8; i++){
-    
-      //Set data pin
-      if (bcmBuffer[BCMtracker+(channelAdjustment*8)] & (1<<(7-i))) ShiftPort |= data;
-      else ShiftPort &= ~data;
-
-      //Toggle clock pin
-      ShiftPort |= clock;
-      ShiftPort &= ~clock;
-    }
+    SPDR = bcmBuffer[BCMtracker+(channelAdjustment*8)];
+    while(!(SPSR & (1<<SPIF)));	//Wait for data transfer
   }
   //Do not Latch, that will happen on the next interrupt  
 }
