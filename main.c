@@ -5,11 +5,12 @@
 			//don't use the most significant bits 
 			//if you use a non-multiple)
 
-#define ShiftRegister DDRD
-#define ShiftPort PORTD
-#define data (1<<PD5)
-#define latch (1<<PD6)
-#define clock (1<<PD7)
+#define SHIFTREGISTER DDRB
+#define SHIFTPORT PORTB
+#define DATA (1<<PB0)
+#define LATCH (1<<PB4)
+#define CLOCK (1<<PB3)
+#define TRIGGER (1<<PB1)
 
 unsigned char pwmValues[16] ={
   0x04,0x10,0xFF,0x10,0x04,0x00,0x00,0x00,
@@ -52,11 +53,24 @@ void shiftCylon(unsigned char direction){
   calcBCM();
 }
 
+void shiftByte(unsigned char byte) {
+  for (unsigned char i=0x01; i; i<<=1){
+    if (i & byte) SHIFTPORT |= DATA;
+    else SHIFTPORT &= ~DATA;
+    SHIFTPORT |= CLOCK;
+    SHIFTPORT &= ~CLOCK;
+  }
+}
+
 int main(void)
 {
   //Setup IO
-  ShiftRegister |= (data | latch | clock);	//Set outputs
-  ShiftPort &= ~(data | latch | clock);	//Set pins low
+  SHIFTREGISTER |= (DATA | LATCH | CLOCK);	//Set outputs
+  SHIFTPORT &= ~(DATA | LATCH | CLOCK);	//Set pins low
+
+  DDRB &= ~TRIGGER;	//TRIGGER as input
+  PORTB |= TRIGGER;	//Enable internal pull-up resistor
+
 
   //Prewind the Binary Coded Modulation buffer
   calcBCM();
@@ -73,6 +87,20 @@ int main(void)
   unsigned char direction;  
   while(1)
   {
+
+    //Dirty hack to make this controlled by a pin input
+    if (PINB & TRIGGER){
+	cli();
+
+	shiftByte(0x00);
+	shiftByte(0x00);
+	SHIFTPORT |= LATCH;
+	SHIFTPORT &= ~LATCH;
+
+	while(PINB & TRIGGER){}	//Block the rest of the program until the pin is clear
+	sei();
+    }
+
     if (timingFlag) { 	//This flag get set about 122 times per second
       timingFlag = 0;	//Unset flag for next time
       if (++timingBuffer > 7){
@@ -85,10 +113,10 @@ int main(void)
   }
 }
 
-ISR(TIMER0_COMPA_vect){
-  //Latch data loaded into the shift register on last interrupt
-  ShiftPort |= latch;
-  ShiftPort &= ~latch;
+ISR(TIM0_COMPA_vect){
+  //LATCH DATA loaded into the shift register on last interrupt
+  SHIFTPORT |= LATCH;
+  SHIFTPORT &= ~LATCH;
 
   //Set interrupt for next BCM delay value
   	//This is confusing--> it actually sets how
@@ -98,7 +126,7 @@ ISR(TIMER0_COMPA_vect){
   else OCR0A <<= 1;
   
   //Tell main loop we're about wait for the largest number
-  //  clock ticks in the BCM cycle. This is a good time to
+  //  CLOCK ticks in the BCM cycle. This is a good time to
   //  do things in the main loop because they'll have the
   //  max amount of time before being interrupted.
   if (OCR0A == (1<<7)) timingFlag = 1;
@@ -107,18 +135,9 @@ ISR(TIMER0_COMPA_vect){
   BCMtracker ++;
   BCMtracker &= 7;	//Flip back to zero when it gets to 8 
 
-  //Strobe in data for next time
-  for (signed char channelAdjustment=(channels/8)-1; channelAdjustment>=0; channelAdjustment--){
-    for (unsigned char i=0; i<8; i++){
-    
-      //Set data pin
-      if (bcmBuffer[BCMtracker+(channelAdjustment*8)] & (1<<(7-i))) ShiftPort |= data;
-      else ShiftPort &= ~data;
+  //Strobe in DATA for next time
+  shiftByte(bcmBuffer[BCMtracker]);
+  shiftByte(bcmBuffer[BCMtracker+8]);
 
-      //Toggle clock pin
-      ShiftPort |= clock;
-      ShiftPort &= ~clock;
-    }
-  }
-  //Do not Latch, that will happen on the next interrupt  
+  //Do not LATCH, that will happen on the next interrupt  
 }
