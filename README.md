@@ -6,6 +6,7 @@ The master branch uses an ATmega168 as an example, driving the shift registers w
 
 There is a second branch in which I've ported the code to an ATtiny13. This chip doesn't really have hardware SPI so I'm driving the shift registers in software (bit banging). I have also added some code that keeps the scanning function stopped until one of the external pins is pulled low. That's becuase I'm triggering the hardware with one pin from the parallel port on my computer.
 For more information on that branch, check out the code repository, and my blog post about it.
-* [ATtiny13 code branch](https://github.com/szczys/595-Larson-Scanner/tree/t13-port)
-* [Blog post about ATtiny13 branch](http://jumptuck.com/2011/11/17/cylon-eye-conclusion/)
+
+*	[ATtiny13 code branch](https://github.com/szczys/595-Larson-Scanner/tree/t13-port)
+*	[Blog post about ATtiny13 branch](http://jumptuck.com/2011/11/17/cylon-eye-conclusion/)
 
